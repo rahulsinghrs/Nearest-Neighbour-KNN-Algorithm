@@ -1,0 +1,250 @@
+---
+title: "Nearest Neighbour Machine Learning"
+author: "Rahul Singh"
+date: "1/11/2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown for Using Nearest Neighbour (Basics)
+
+Nearest Neighbor Classification
+
+(Lazy Algorithm)
+
+**Example:** k-nearest neighbours k-NN algorithm; the KNN classifier is also a non parametric (so the algorithm makes no explicit assumptions and therefore you need not worry if you end up applying Gaussian model to a non Gaussian dataset; note that this has its own pitfalls) and instance-based (so the algorithm chooses to memorize the training instances which are subsequently used as “knowledge” for the prediction phase).
+
+**Use:** Classify unlabeled examples by putting them in a class of similarly labeled examples; one of the first choices for a classification study when there is little or no prior knowledge about the distribution of the data OR when relationships among the features and the target classes are complex
+
+**When not to use it:** When the data is too noisy and thus no clear distinction exists among groups
+
+Pros: simple, effective, does't make any assumptions about data distribution
+Cons: doesn't produce a model, you need to select the right k, classification phase is slow
+
+**Other points:**
+k-NN treats features as coordinates in a multidimensional space
+
+Traditionally k-NN uses Euclidean distance (imagine using a ruler to connect two points/ shortest distance routes)
+
+Trade-off for choosing appropriate k: balance between overfitting and underfitting; large k reduces the impact or variance of noisy data BUT biases the results to ignore small but important patterns. On the contrary, small k value will mean that you may end up letting the noise influence your results. One common practice is to begin with k equal to the square root of the number of training examples. An alternative approach is to test several k values on a variety of test datasets and choose the one that delivers the best classi cation performance. 
+
+It is important to make every range comparable; for this we can use min-max normalization (but the limitation of this is that we may not know the minimum and maximum values of future cases, and it may be outside the initially defined max-min range); or another way to transform data is to do z-score standardization with the resulting value for every feature as a Z Score (with the assumption that the future examples will have similar mean and standard deviation as the training examples). For nominal variables (such as male or female) we need to put dummy variables. Also, if you want to fin out if the weather is cold then it is okay to classify cold as 1 and 0 otherwise (hot or medium temp).
+
+**Remember:** k-means is unsupervised and is used for clustering and that k-NN is supervised
+
+**Reference dataset** W.N. Street, W.H. Wolberg and O.L. Mangasarian. Nuclear feature extraction for breast tumor diagnosis. IS&T/SPIE 1993 International Symposium on Electronic Imaging: Science and Technology, volume 1905, pages 861-870, San Jose, CA, 1993. (https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+(Diagnostic))
+
+```{r}
+#load libraries
+library(ggplot2)
+library(base) #to run lapply in this code
+```
+
+
+```{r}
+#import file
+input_data<-read.csv("~/Desktop/Nearest Neighbour R/Breast Cancer Wisconsin Diagnostic Data Set/wisc_bc_data.csv", stringsAsFactors = FALSE)
+
+```
+
+```{r}
+#see structure of the input_data
+str(input_data)
+View(input_data)
+dim(input_data)
+head(input_data)
+#summary(input_data)
+```
+
+```{r}
+#dropping id as it is a unique identifier and has no role to play in the analysis
+input_data<- input_data[,-1]
+```
+
+```{r}
+#to see how many patients have been diagnosis with Benign Cancer and Malignant Cancer
+table(input_data$diagnosis)
+
+#to code diagnosis as factors
+input_data$diagnosis<- factor(input_data$diagnosis, levels = c("B", "M"), labels = c("Benign", "Malignant"))
+```
+
+```{r}
+#to see the percentage of benign and malignant wrt to entire dataset
+prop.table(table(input_data$diagnosis))*100
+```
+
+
+```{r}
+#creating normalizing function
+normalize <- function (x) {
+  return ((x-min(x))/(max(x)-min(x)))
+}
+```
+
+```{r}
+#applying the normalize function
+input_data_normalized<- as.data.frame(lapply(input_data[,2:31], normalize)) #remember in normalized data we have removed the diagnosis column
+#to check if we have normalized out dataset
+View(input_data_normalized)
+#summary(input_data_normalized)
+```
+
+```{r}
+#Data preparation into training and test datasets (roughly as 80/20 split of data to train/test)
+testing_data<-input_data_normalized[1:100,]
+training_data<-input_data_normalized[101:569,]
+
+#we now use the excluded diagnosis column and call them label_train and label_test
+label_test<-input_data[1:100,1]
+label_train<-input_data[101:569,1]
+```
+
+```{r}
+#install library(class) for classification
+library(class)
+#to train the model we use the knn function
+predicted_data<-knn(train=training_data,test=testing_data,cl=label_train, k=21) #cl refers to the class in the function which is a vector with the class of each row in the training dataset
+#we chose k as 21 because it is roughlythe square root of 429 (our no. of rows in the training dataset)
+```
+
+```{r}
+#Evaluating the model performance
+#Load gmodels library that provides for CrossTable function which compares two vectors
+library(gmodels)
+confusion_matrix<-CrossTable(x=label_test, y=predicted_data, prop.chisq = FALSE) #prop.chisq is false so that we do not get unnecessary values of chi square tests
+print(confusion_matrix)
+#In the output you will observe: 
+#True Negative-> top left cell
+#True Positive-> bottom right cell
+#False Negative-> lower left cell; errors in this direction are bad!
+#False Positive-> top right cell; less dangerous than false negative
+cat("We can observe that 12% of 100 test data were incorrectly classified.")
+```
+
+#Variation 1 to improve the model: transformation using Z score standardization
+```{r}
+input_data_zScore<-as.data.frame(scale(input_data[-1]))
+summary(input_data_zScore) #the mean z score should always be zero
+```
+
+
+```{r}
+#Data preparation into training and test datasets (roughly as 80/20 split of data to train/test)
+testing_data_z<-input_data_zScore[1:100,]
+training_data_z<-input_data_zScore[101:569,]
+
+#we now use the excluded diagnosis column and call them label_train and label_test (this is the same as before)
+label_test<-input_data[1:100,1]
+label_train<-input_data[101:569,1]
+```
+
+```{r}
+#install library(class) for classification
+library(class)
+#to train the model we use the knn function
+predicted_data_z<-knn(train=training_data_z,test=testing_data_z,cl=label_train, k=21) 
+CrossTable(x=label_test, y=predicted_data_z, prop.chisq = FALSE)
+cat("The new results are not improving the model as they are similar.")
+```
+
+#Variation 2 to improve the model: transformation using different k values
+
+(With k=1)
+```{r}
+#install library(class) for classification
+library(class)
+#to train the model we use the knn function
+predicted_data<-knn(train=training_data,test=testing_data,cl=label_train, k=1) #cl refers to the class in the function which is a vector with the class of each row in the training dataset
+#we chose k as 21 because it is roughlythe square root of 429 (our no. of rows in the training dataset)
+```
+
+```{r}
+#Evaluating the model performance
+#Load gmodels library that provides for CrossTable function which compares two vectors
+library(gmodels)
+confusion_matrix<-CrossTable(x=label_test, y=predicted_data, prop.chisq = FALSE) #prop.chisq is false so that we do not get unnecessary values of chi square tests
+print(confusion_matrix)
+#In the output you will observe: 
+#True Negative-> top left cell
+#True Positive-> bottom right cell
+#False Negative-> lower left cell; errors in this direction are bad!
+#False Positive-> top right cell; less dangerous than false negative
+cat("We can observe that 5% of 100 test data were incorrectly classified.")
+```
+
+(With k=5)
+```{r}
+#install library(class) for classification
+library(class)
+#to train the model we use the knn function
+predicted_data<-knn(train=training_data,test=testing_data,cl=label_train, k=5) #cl refers to the class in the function which is a vector with the class of each row in the training dataset
+#we chose k as 21 because it is roughlythe square root of 429 (our no. of rows in the training dataset)
+```
+
+```{r}
+#Evaluating the model performance
+#Load gmodels library that provides for CrossTable function which compares two vectors
+library(gmodels)
+confusion_matrix<-CrossTable(x=label_test, y=predicted_data, prop.chisq = FALSE) #prop.chisq is false so that we do not get unnecessary values of chi square tests
+print(confusion_matrix)
+#In the output you will observe: 
+#True Negative-> top left cell
+#True Positive-> bottom right cell
+#False Negative-> lower left cell; errors in this direction are bad!
+#False Positive-> top right cell; less dangerous than false negative
+cat("We can observe that 9% of 100 test data were incorrectly classified.")
+```
+
+(With k=11)
+```{r}
+#install library(class) for classification
+library(class)
+#to train the model we use the knn function
+predicted_data<-knn(train=training_data,test=testing_data,cl=label_train, k=11) #cl refers to the class in the function which is a vector with the class of each row in the training dataset
+#we chose k as 21 because it is roughlythe square root of 429 (our no. of rows in the training dataset)
+```
+
+```{r}
+#Evaluating the model performance
+#Load gmodels library that provides for CrossTable function which compares two vectors
+library(gmodels)
+confusion_matrix<-CrossTable(x=label_test, y=predicted_data, prop.chisq = FALSE) #prop.chisq is false so that we do not get unnecessary values of chi square tests
+print(confusion_matrix)
+#In the output you will observe: 
+#True Negative-> top left cell
+#True Positive-> bottom right cell
+#False Negative-> lower left cell; errors in this direction are bad!
+#False Positive-> top right cell; less dangerous than false negative
+cat("We can observe that 8% of 100 test data were incorrectly classified.")
+```
+
+(With k=27)
+```{r}
+#install library(class) for classification
+library(class)
+#to train the model we use the knn function
+predicted_data<-knn(train=training_data,test=testing_data,cl=label_train, k=27) #cl refers to the class in the function which is a vector with the class of each row in the training dataset
+#we chose k as 21 because it is roughlythe square root of 429 (our no. of rows in the training dataset)
+```
+
+```{r}
+#Evaluating the model performance
+#Load gmodels library that provides for CrossTable function which compares two vectors
+library(gmodels)
+confusion_matrix<-CrossTable(x=label_test, y=predicted_data, prop.chisq = FALSE) #prop.chisq is false so that we do not get unnecessary values of chi square tests
+print(confusion_matrix)
+#In the output you will observe: 
+#True Negative-> top left cell
+#True Positive-> bottom right cell
+#False Negative-> lower left cell; errors in this direction are bad!
+#False Positive-> top right cell; less dangerous than false negative
+cat("We can observe that 14% of 100 test data were incorrectly classified.")
+```
+
+**Conclusion:** We can observe that the kNN algorithm with k=1 yields the best results in terms of predicting whether a cancer is beningn or malignant.
